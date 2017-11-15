@@ -1,6 +1,6 @@
 #include <AccelStepper.h>
 
-AccelStepper stepperA(1, 2, 3); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
+AccelStepper stepperA(1, 6, 7); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
 
 
 int incomingByte = 0;
