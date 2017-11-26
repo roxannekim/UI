@@ -3,7 +3,9 @@
 
 // Setup Motor
 const int motorSpeed = 1000;
-const int motorAcceleration = 1000;
+const int zeroSpeed = 500;
+const int zeroAcceleration = 800;
+const int motorAcceleration = 2000;
 
 volatile AccelStepper stepper1(1, 11, 12); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
 volatile AccelStepper stepper2(1, 9, 10); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
@@ -26,9 +28,9 @@ volatile int cZero = false;
 
 const int aZeroOffset = -2050;
 const int aBottom = 2000;
-const int bZeroOffset = -2050;
+const int bZeroOffset = -2080;
 const int bBottom = 2000;
-const int cZeroOffset = -350;
+const int cZeroOffset = -400;
 const int cBottom = 340;
 
 // Serial??
@@ -43,11 +45,11 @@ int hallState2 = LOW;
 
 // Setup Limit Switches
 const int limitPinA = 19;
-int limitStateA = LOW;
+volatile int limitStateA = LOW;
 const int limitPinB = 20;
-int limitStateB = LOW;
+volatile int limitStateB = LOW;
 const int limitPinC = 21;
-int limitStateC = LOW;
+volatile int limitStateC = LOW;
 
 // Event listener bounceback prevention
 volatile int checkTime = 0;
@@ -67,14 +69,14 @@ void setup() {
   
   
   // Setup motor speed and acceleration
-  stepper1.setSpeed(motorSpeed);
-  stepper1.setAcceleration(motorAcceleration);
-  stepper2.setSpeed(motorSpeed);
-  stepper2.setAcceleration(motorAcceleration);
-  stepper3.setSpeed(motorSpeed);
-  stepper3.setAcceleration(motorAcceleration);
-  stepper4.setSpeed(motorSpeed);
-  stepper4.setAcceleration(motorAcceleration);
+  stepper1.setMaxSpeed(zeroSpeed);
+  stepper1.setAcceleration(zeroAcceleration);
+  stepper2.setMaxSpeed(zeroSpeed);
+  stepper2.setAcceleration(zeroAcceleration);
+  stepper3.setMaxSpeed(zeroSpeed);
+  stepper3.setAcceleration(zeroAcceleration);
+  stepper4.setMaxSpeed(zeroSpeed);
+  stepper4.setAcceleration(zeroAcceleration);
 
   // Setup limit listeners
   attachInterrupt( digitalPinToInterrupt( limitPinA ), limitDetectA, RISING);
@@ -90,10 +92,16 @@ void loop() {
 
   currentTime = millis();
 
+  // Store state of limit switches
+  limitStateA = digitalRead(limitPinA);
+  limitStateB = digitalRead(limitPinB);
+  limitStateC = digitalRead(limitPinC);
+
   if (firstRun) {
     Serial.println("======== First Run ========");
     zeroing = true;
     firstRun = false;
+    delay(3000);// Warm up
     return;
   }
   else if (zeroing)
@@ -205,7 +213,15 @@ void zeroMotors() {
     
     case 0: // Motors 3 & 4
     
-      if (cZero == false && cMoving == false) { // Move motors down until we hit the limit switch
+      if ( limitStateC == LOW && cZero == false && cMoving == false ) {
+        Serial.println("Motors 3 & 4 crashed");
+        cZero = true;
+        cMoving = false;
+        stepper3.setCurrentPosition(0);
+        stepper4.setCurrentPosition(0);
+        
+      } 
+      else if (cZero == false && cMoving == false) { // Move motors down until we hit the limit switch
         cMoving = true;
         stepper3.moveTo(10000);
         stepper4.moveTo(10000);
@@ -236,8 +252,15 @@ void zeroMotors() {
     break;
 
     case 1:
-    
-      if (aZero == false && aMoving == false) {
+
+      if (limitStateA == LOW && aZero == false && aMoving == false)
+      {
+        Serial.println("Motor 1 Crashed");
+        aZero = true;
+        aMoving = false;
+        stepper1.setCurrentPosition(0);
+      }
+      else if (aZero == false && aMoving == false) {
         Serial.println("A Moving to Zero");
         aMoving = true;
         stepper1.moveTo(10000);
@@ -263,7 +286,15 @@ void zeroMotors() {
     break;
 
     case 2:
-      if (bZero == false && bMoving == false) {
+
+      if (limitStateB == LOW && bZero == false && bMoving == false)
+      {
+        Serial.println("Motor 2 crashed");
+        bZero = true;
+        bMoving = false;
+        stepper2.setCurrentPosition(0);
+      }
+      else if (bZero == false && bMoving == false) {
         Serial.println("B Moving to Zero");
         stepper2.moveTo(10000);
         bMoving = true;
@@ -313,6 +344,7 @@ void limitDetectA() {
 }
 
 void limitDetectB() {
+  
   currentTime = millis();
   
   if (currentTime - checkTime > limitBounceBackDelay) {
