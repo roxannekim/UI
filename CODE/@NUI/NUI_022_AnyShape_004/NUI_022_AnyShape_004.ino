@@ -5,20 +5,24 @@
 int motorSpeed = 2000;
 int motorAcceleration = 1000;
 
-AccelStepper stepper1(1, 11, 12); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
-AccelStepper stepper2(1, 9, 10); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
-AccelStepper stepper3(1, 6, 7); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
-AccelStepper stepper4(1, 44, 46); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
+volatile AccelStepper stepper1(1, 11, 12); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
+volatile AccelStepper stepper2(1, 9, 10); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
+volatile AccelStepper stepper3(1, 6, 7); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
+volatile AccelStepper stepper4(1, 44, 46); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
 
-bool aDown = false; // Stepper 1
-bool bDown = false; // Stepper 2
-bool cDown = false; // Stepper 3 & 4
+volatile bool aDown = false; // Stepper 1
+volatile bool aMoving = false;
+volatile bool bDown = false; // Stepper 2
+volatile bool bMoving = false;
+volatile bool cDown = false; // Stepper 3 & 4
+volatile bool cMoving = false;
 
-int zeroStage = 0; // Stage of progress for zeroing motors. 0 = 3 & 4, 1 = 1, 2 = 2;
+volatile int zeroStage = 0; // Stage of progress for zeroing motors. 0 = 3 & 4, 1 = 1, 2 = 2;
 int zeroing = false;
-int aZero = false;
-int bZero = false;
-int cZero = false;
+volatile int aZero = false;
+volatile int bZero = false;
+volatile int cZero = false;
+
 
 int aZeroOffset = -1000;
 int bZeroOffset = -1000;
@@ -43,8 +47,8 @@ int limitPinC = 21;
 int limitStateC = LOW;
 
 // Event listener bounceback prevention
-int checkTime = 0;
-int currentTime = 0;
+volatile int checkTime = 0;
+volatile int currentTime = 0;
 int bounceBackDelay = 500; // ms
 int limitBounceBackDelay = 250; //ms
 
@@ -198,24 +202,27 @@ void zeroMotors() {
     
     case 0: // Motors 3 & 4
     
-      if (cZero == false) { // Move motors down until we hit the limit switch
+      if (cZero == false && cMoving == false) { // Move motors down until we hit the limit switch
+        cMoving = true;
         stepper3.moveTo(10000);
         stepper4.moveTo(10000);
         return;
       }
-      else if (cZero == true && !stepper3.isRunning() ) { // Move motors up to proper "0" after hitting swtich
+      else if (cZero == true && cMoving == false ) { // Move motors up to proper "0" after hitting swtich
         Serial.println("C Moving back up");
+        cMoving = true;
         stepper3.setSpeed(motorSpeed);
         stepper4.setSpeed(motorSpeed);
         stepper3.moveTo(cZeroOffset);
         stepper4.moveTo(cZeroOffset);
-        delay(500);
+        //delay(500);
         stepper3.run();
         stepper4.run();
         return;
       }
       else if (cZero == true && stepper3.distanceToGo() == 0) { // Set the new resting position as 0
         Serial.println("New Zero");
+        cMoving = false;
         stepper3.setCurrentPosition(0);
         stepper4.setCurrentPosition(0);
         zeroStage++; // Move on to the next motor
@@ -227,19 +234,23 @@ void zeroMotors() {
 
     case 1:
     
-      if (aZero == false) {
+      if (aZero == false && aMoving == false) {
+        Serial.println("A Moving to Zero");
+        aMoving = true;
         stepper1.moveTo(10000);
       }
-      else if (aZero == true && !stepper1.isRunning() ) {
+      else if (aZero == true && aMoving == false ) {
         Serial.println("A Moving back up");
+        aMoving = true;
         stepper1.setSpeed(motorSpeed);
         stepper1.moveTo(aZeroOffset);
-        delay(500);
+        //delay(500);
         stepper1.run();
         return;
       }
       else if (aZero == true && stepper1.distanceToGo() == 0) {
-        Serial.println("New Zero");
+        Serial.println("A New Zero");
+        aMoving = false;
         stepper1.setCurrentPosition(0);
         aZero = true;
         zeroStage++;
@@ -249,19 +260,23 @@ void zeroMotors() {
     break;
 
     case 2:
-      if (bZero == false) {
+      if (bZero == false && bMoving == false) {
+        Serial.println("B Moving to Zero");
         stepper2.moveTo(10000);
+        bMoving = true;
       }
-      else if (bZero == true && !stepper2.isRunning() ) {
+      else if (bZero == true && bMoving == false ) {
         Serial.println("B Moving back up");
+        bMoving = true;
         stepper2.setSpeed(motorSpeed);
         stepper2.moveTo(bZeroOffset);
-        delay(500);
+        //delay(500);
         stepper2.run();
         return;
       }
       else if (bZero == true && stepper2.distanceToGo() == 0) {
-        Serial.println("New Zero");
+        Serial.println("B New Zero");
+        bMoving = false;
         stepper2.setCurrentPosition(0);
         bZero = true;
         zeroStage++;
@@ -283,11 +298,11 @@ void limitDetectA() {
   currentTime = millis();
     
   if (currentTime - checkTime > limitBounceBackDelay) {
-    Serial.println("Limit A");
     checkTime = currentTime;
     
-    if (aZero == false && zeroStage == 1) {
+    if (aZero == false && zeroStage == 1 && aMoving == true) {
       aZero = true;
+      aMoving = false;
       stepper1.setCurrentPosition(0);
     }
       
@@ -298,11 +313,11 @@ void limitDetectB() {
   currentTime = millis();
   
   if (currentTime - checkTime > limitBounceBackDelay) {
-    Serial.println("Limit B");
     checkTime = currentTime;
     
-    if (bZero == false && zeroStage == 2) {
+    if (bZero == false && zeroStage == 2 && bMoving == true) {
       bZero = true;
+      bMoving = false;
       stepper2.setCurrentPosition(0);
     }
       
@@ -310,15 +325,16 @@ void limitDetectB() {
 }
 
 void limitDetectC() {
+  
   currentTime = millis();
   
   if (currentTime - checkTime > limitBounceBackDelay) {
-    Serial.println("Limit C");
-    Serial.println(currentTime - checkTime);
+   
     checkTime = currentTime;
     
-    if (cZero == false && zeroStage == 0) {
+    if (cZero == false && zeroStage == 0 && cMoving == true) {
       cZero = true;
+      cMoving = false;
       stepper3.setCurrentPosition(0);
       stepper4.setCurrentPosition(0);
     }
