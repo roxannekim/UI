@@ -13,7 +13,7 @@ const int ledPin1 =  4;
 const int ledPin2 =  5;
 int hallState1 = LOW;
 int hallState2 = LOW;
-int motorSpeed = 4000;
+int motorSpeed = 500;
 
 void setup() {
   pinMode(ledPin1, OUTPUT);
@@ -34,6 +34,17 @@ void loop() {
   digitalWrite(ledPin1, hallState1);
   digitalWrite(ledPin2, hallState2);
 
+  stepper3.setMaxSpeed(motorSpeed);
+  stepper3.setAcceleration(motorSpeed);
+  stepper3.moveTo(-500);
+  stepper3.run();
+  stepper4.setMaxSpeed(motorSpeed);
+  stepper4.setAcceleration(motorSpeed);
+  stepper4.moveTo(-500);
+  stepper4.run();
+
+  
+  /*
   if (currentMillis - previousMillis > 1000)
   {
     previousMillis = currentMillis;
@@ -63,7 +74,7 @@ void loop() {
     int caseN = 4;
 
     all();
-  }
+  }*/
 }
 
 

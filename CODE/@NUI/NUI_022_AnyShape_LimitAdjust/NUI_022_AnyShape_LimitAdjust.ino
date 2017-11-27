@@ -29,7 +29,7 @@ int bounceBackDelay = 500; // ms
 int limitBounceBackDelay = 250; //ms
 
 int currentMotor = 0;
-int manualStepAmount = 25;
+int manualStepAmount = 50;
 
 void setup() {
     
