@@ -30,7 +30,7 @@ void loop() {
   digitalWrite(ledPin1, hallState1);
   digitalWrite(ledPin2, hallState2);
 
-  if (hallState1 == HIGH)
+  if (hallState1 == HIGH && hallState2 == LOW)
   {
     stepper1.setMaxSpeed(motorSpeed);
     stepper1.setAcceleration(motorSpeed);
@@ -44,7 +44,7 @@ void loop() {
 
 
 
-  if (hallState2 == HIGH)
+  if (hallState2 == HIGH && hallState1 == LOW)
   {
     stepper2.setMaxSpeed(motorSpeed);
     stepper2.setAcceleration(motorSpeed);

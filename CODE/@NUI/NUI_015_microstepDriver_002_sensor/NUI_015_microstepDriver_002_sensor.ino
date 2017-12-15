@@ -1,3 +1,4 @@
+
 #include <AccelStepper.h>
 
 AccelStepper stepperA(1, 6, 7); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
@@ -68,4 +69,3 @@ void loop()
   //  stepperA.run();
   //  delay(2000);
 }
-

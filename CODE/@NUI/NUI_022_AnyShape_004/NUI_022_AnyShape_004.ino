@@ -1,90 +1,38 @@
 #include <AccelStepper.h>
 
+AccelStepper stepper1(1, 11, 12); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
+AccelStepper stepper2(1, 9, 10); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
+AccelStepper stepper3(1, 6, 7); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
+AccelStepper stepper4(1, 44, 46); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
 
-// Setup Motor
-const int motorSpeed = 1000;
-const int zeroSpeed = 500;
-const int zeroAcceleration = 800;
-const int motorAcceleration = 2000;
-
-volatile AccelStepper stepper1(1, 11, 12); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
-volatile AccelStepper stepper2(1, 9, 10); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
-volatile AccelStepper stepper3(1, 6, 7); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
-volatile AccelStepper stepper4(1, 44, 46); // (1 = stepper driver, 2 = pin# for step, 3 = pin# for direction)
-
-volatile bool aDown = false; // Stepper 1
-volatile bool aMoving = false;
-volatile bool bDown = false; // Stepper 2
-volatile bool bMoving = false;
-volatile bool cDown = false; // Stepper 3 & 4
-volatile bool cMoving = false;
-
-volatile int zeroStage = 0; // Stage of progress for zeroing motors. 0 = 3 & 4, 1 = 1, 2 = 2, 3 = done;
-int zeroing = false;
-volatile int aZero = false;
-volatile int bZero = false;
-volatile int cZero = false;
-
-
-const int aZeroOffset = -2050;
-const int aBottom = 2000;
-const int bZeroOffset = -2080;
-const int bBottom = 2000;
-const int cZeroOffset = -400;
-const int cBottom = 340;
-
-// Serial??
 volatile byte STATE = LOW;
 volatile byte TRANSITION = LOW;
 
-// Setup Hall sensors
 const int hallPin1 = 2;
-int hallState1 = LOW;
 const int hallPin2 = 3;
+const int ledPin1 =  4;
+const int ledPin2 =  5;
+int hallState1 = LOW;
 int hallState2 = LOW;
+int motorSpeed = 2000;
 
-// Setup Limit Switches
-const int limitPinA = 19;
-volatile int limitStateA = LOW;
-const int limitPinB = 20;
-volatile int limitStateB = LOW;
-const int limitPinC = 21;
-volatile int limitStateC = LOW;
+int checkTime = 0;
+int currentTime = 0;
 
-// Event listener bounceback prevention
-volatile int checkTime = 0;
-volatile int currentTime = 0;
-const int bounceBackDelay = 500; // ms
-const int limitBounceBackDelay = 250; //ms
-
-bool firstRun = true;
+bool aDown = false;
+bool bDown = false;
+bool cDown = false;
 
 void setup() {
-
-  // Setup object detection
+  pinMode(ledPin1, OUTPUT);
+  pinMode(ledPin2, OUTPUT);
   pinMode(hallPin1, INPUT_PULLUP);
   pinMode(hallPin2, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(hallPin1), blink1, CHANGE);
   attachInterrupt(digitalPinToInterrupt(hallPin2), blink2, CHANGE);
-  
-  
-  // Setup motor speed and acceleration
-  stepper1.setMaxSpeed(zeroSpeed);
-  stepper1.setAcceleration(zeroAcceleration);
-  stepper2.setMaxSpeed(zeroSpeed);
-  stepper2.setAcceleration(zeroAcceleration);
-  stepper3.setMaxSpeed(zeroSpeed);
-  stepper3.setAcceleration(zeroAcceleration);
-  stepper4.setMaxSpeed(zeroSpeed);
-  stepper4.setAcceleration(zeroAcceleration);
-
-  // Setup limit listeners
-  attachInterrupt( digitalPinToInterrupt( limitPinA ), limitDetectA, RISING);
-  attachInterrupt( digitalPinToInterrupt( limitPinB ), limitDetectB, RISING);
-  attachInterrupt( digitalPinToInterrupt( limitPinC ), limitDetectC, RISING);
-  
   Serial.begin(9600);
-  
+
+  TWBR = ((F_CPU / 3200000l) - 16) / 2; // Change the i2c clock to 400KHz
 }
 
 
@@ -92,30 +40,12 @@ void loop() {
 
   currentTime = millis();
 
-  // Store state of limit switches
-  limitStateA = digitalRead(limitPinA);
-  limitStateB = digitalRead(limitPinB);
-  limitStateC = digitalRead(limitPinC);
-
-  if (firstRun) {
-    Serial.println("======== First Run ========");
-    zeroing = true;
-    firstRun = false;
-    delay(3000);// Warm up
-    return;
-  }
-  else if (zeroing)
-  {
-    //Serial.println("Zeroing...");
-    zeroMotors();
-  }
-  // Check if any motors are currently running, and if bounceback time has passed
-  else if (!stepper1.isRunning() && !stepper2.isRunning() && !stepper3.isRunning() && !stepper4.isRunning() && currentTime - checkTime > bounceBackDelay ) {
+  if (!stepper1.isRunning() && !stepper2.isRunning() && !stepper3.isRunning() && !stepper4.isRunning() && currentTime - checkTime > 250 ) {
     //Serial.println("No motors running");
     //checkState();
-    setMotors();
+    runMotors();
   }
-  
+
   stepper1.run();
   stepper2.run();
   stepper3.run();
@@ -123,36 +53,36 @@ void loop() {
 
 }
 
-void setMotors() {
+void runMotors() {
 
   if (hallState1 == HIGH && hallState2 == LOW && bDown == false && cDown == false)
   {
 
     aDown = true;
     stepper1.setMaxSpeed(motorSpeed);
-    stepper1.setAcceleration(motorAcceleration);
-    stepper1.moveTo(aBottom);
+    stepper1.setAcceleration(motorSpeed);
+    stepper1.moveTo(-300);
   }
   else if (hallState2 == HIGH && hallState1 == LOW && aDown == false  && cDown == false)
   {
     bDown = true;
     stepper2.setMaxSpeed(motorSpeed);
-    stepper2.setAcceleration(motorAcceleration);
-    stepper2.moveTo(bBottom);
+    stepper2.setAcceleration(motorSpeed);
+    stepper2.moveTo(-300);
   }
   else if (hallState1 == HIGH && hallState2 == HIGH && aDown == false && bDown == false) {
     cDown = true;
     stepper3.setMaxSpeed(motorSpeed);
-    stepper3.setAcceleration(motorAcceleration);
-    stepper3.moveTo(cBottom);
+    stepper3.setAcceleration(motorSpeed);
+    stepper3.moveTo(-300);
     stepper4.setMaxSpeed(motorSpeed);
-    stepper4.setAcceleration(motorAcceleration);
-    stepper4.moveTo(cBottom);
+    stepper4.setAcceleration(motorSpeed);
+    stepper4.moveTo(-300);
   }
   else if (hallState1 == LOW && hallState2 == LOW && aDown == true) {
     stepper1.setMaxSpeed(motorSpeed);
-    stepper1.setAcceleration(motorAcceleration);
-    stepper1.moveTo(0);
+    stepper1.setAcceleration(motorSpeed);
+    stepper1.moveTo(300);
     if (stepper1.isRunning() == false) {
       Serial.println( "motor 1 is up");
       aDown = false;
@@ -160,8 +90,8 @@ void setMotors() {
   }
   else if (hallState1 == LOW && hallState2 == LOW && bDown == true) {
     stepper2.setMaxSpeed(motorSpeed);
-    stepper2.setAcceleration(motorAcceleration);
-    stepper2.moveTo(0);
+    stepper2.setAcceleration(motorSpeed);
+    stepper2.moveTo(300);
     if (stepper2.isRunning() == false) {
       Serial.println( "motor 2 is up");
       bDown = false;
@@ -169,12 +99,12 @@ void setMotors() {
   }
   else if (hallState1 == LOW && hallState2 == LOW && cDown == true) {
     stepper3.setMaxSpeed(motorSpeed);
-    stepper3.setAcceleration(motorAcceleration);
-    stepper3.moveTo(0);
+    stepper3.setAcceleration(motorSpeed);
+    stepper3.moveTo(300);
 
     stepper4.setMaxSpeed(motorSpeed);
-    stepper4.setAcceleration(motorAcceleration);
-    stepper4.moveTo(0);
+    stepper4.setAcceleration(motorSpeed);
+    stepper4.moveTo(300);
 
     if (stepper3.isRunning() == false && stepper4.isRunning() == false) {
       Serial.println( "motor 3 and 4 is up");
@@ -207,173 +137,5 @@ void checkState() {
   Serial.println();
 }
 
-void zeroMotors() {
 
-  switch (zeroStage) {
-    
-    case 0: // Motors 3 & 4
-    
-      if ( limitStateC == LOW && cZero == false && cMoving == false ) {
-        Serial.println("Motors 3 & 4 crashed");
-        cZero = true;
-        cMoving = false;
-        stepper3.setCurrentPosition(0);
-        stepper4.setCurrentPosition(0);
-        
-      } 
-      else if (cZero == false && cMoving == false) { // Move motors down until we hit the limit switch
-        cMoving = true;
-        stepper3.moveTo(10000);
-        stepper4.moveTo(10000);
-        return;
-      }
-      else if (cZero == true && cMoving == false ) { // Move motors up to proper "0" after hitting swtich
-        Serial.println("C Moving back up");
-        cMoving = true;
-        stepper3.setSpeed(motorSpeed);
-        stepper4.setSpeed(motorSpeed);
-        stepper3.moveTo(cZeroOffset);
-        stepper4.moveTo(cZeroOffset);
-        //delay(500);
-        stepper3.run();
-        stepper4.run();
-        return;
-      }
-      else if (cZero == true && stepper3.distanceToGo() == 0) { // Set the new resting position as 0
-        Serial.println("New Zero");
-        cMoving = false;
-        stepper3.setCurrentPosition(0);
-        stepper4.setCurrentPosition(0);
-        zeroStage++; // Move on to the next motor
-        cZero = true;
-        return;
-      }
-    
-    break;
 
-    case 1:
-
-      if (limitStateA == LOW && aZero == false && aMoving == false)
-      {
-        Serial.println("Motor 1 Crashed");
-        aZero = true;
-        aMoving = false;
-        stepper1.setCurrentPosition(0);
-      }
-      else if (aZero == false && aMoving == false) {
-        Serial.println("A Moving to Zero");
-        aMoving = true;
-        stepper1.moveTo(10000);
-      }
-      else if (aZero == true && aMoving == false ) {
-        Serial.println("A Moving back up");
-        aMoving = true;
-        stepper1.setSpeed(motorSpeed);
-        stepper1.moveTo(aZeroOffset);
-        //delay(500);
-        stepper1.run();
-        return; 
-      }
-      else if (aZero == true && stepper1.distanceToGo() == 0) {
-        Serial.println("A New Zero");
-        aMoving = false;
-        stepper1.setCurrentPosition(0);
-        aZero = true;
-        zeroStage++;
-        return;
-      }
-      
-    break;
-
-    case 2:
-
-      if (limitStateB == LOW && bZero == false && bMoving == false)
-      {
-        Serial.println("Motor 2 crashed");
-        bZero = true;
-        bMoving = false;
-        stepper2.setCurrentPosition(0);
-      }
-      else if (bZero == false && bMoving == false) {
-        Serial.println("B Moving to Zero");
-        stepper2.moveTo(10000);
-        bMoving = true;
-      }
-      else if (bZero == true && bMoving == false ) {
-        Serial.println("B Moving back up");
-        bMoving = true;
-        stepper2.setSpeed(motorSpeed);
-        stepper2.moveTo(bZeroOffset);
-        //delay(500);
-        stepper2.run();
-        return;
-      }
-      else if (bZero == true && stepper2.distanceToGo() == 0) {
-        Serial.println("B New Zero");
-        bMoving = false;
-        stepper2.setCurrentPosition(0);
-        bZero = true;
-        zeroStage++;
-        return;
-      }
-
-    break;
-
-    case 3:
-      Serial.println("Zeroing complete");
-      zeroing = false;
-
-    break;
-  }
-  
-}
-
-void limitDetectA() {
-  currentTime = millis();
-    
-  if (currentTime - checkTime > limitBounceBackDelay) {
-    checkTime = currentTime;
-    
-    if (aZero == false && zeroStage == 1 && aMoving == true) {
-      aZero = true;
-      aMoving = false;
-      stepper1.setCurrentPosition(0);
-    }
-      
-  }
-}
-
-void limitDetectB() {
-  
-  currentTime = millis();
-  
-  if (currentTime - checkTime > limitBounceBackDelay) {
-    checkTime = currentTime;
-    
-    if (bZero == false && zeroStage == 2 && bMoving == true) {
-      bZero = true;
-      bMoving = false;
-      stepper2.setCurrentPosition(0);
-    }
-      
-  }
-}
-
-void limitDetectC() {
-  
-  currentTime = millis();
-  
-  if (currentTime - checkTime > limitBounceBackDelay) {
-   
-    checkTime = currentTime;
-    
-    if (cZero == false && zeroStage == 0 && cMoving == true) {
-      cZero = true;
-      cMoving = false;
-      stepper3.setCurrentPosition(0);
-      stepper4.setCurrentPosition(0);
-    }
-    
-  }
-
-}

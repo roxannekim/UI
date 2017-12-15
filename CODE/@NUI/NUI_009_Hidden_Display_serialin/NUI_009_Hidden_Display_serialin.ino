@@ -49,13 +49,13 @@ void setup() {
 
 void loop() {
 
+  //particles();
   if (Serial.available() > 0)
   {
     wheelVal = Serial.parseInt();
 
     bSerialActive = true;
     millisSerial = millis();
-
   }
 
   if (!bConnected && bSerialActive)
@@ -63,8 +63,7 @@ void loop() {
     bConnected = true;        // wheel connected..
     Serial.println("wheel connected!");
   }
-
-  if (bConnected && (millis() - millisSerial > 500))
+  else if (bConnected && (millis() - millisSerial > 500))
   {
     bSerialActive = false;    // wheel disconnected..
     bConnected = false;
@@ -81,11 +80,35 @@ void loop() {
 
   }
   else {
+    // read the pushbutton input pin:
+    buttonState = digitalRead(buttonPin);
 
-    manual();
+    if (buttonState != lastButtonState) {
+      if (buttonState == HIGH) {
+        buttonPushCounter++;
+        if (buttonPushCounter > 2) buttonPushCounter = 0;
+        Serial.println("on");
+        Serial.print("number of button pushes:  ");
+        Serial.println(buttonPushCounter);
+      }
+      lastButtonState = buttonState;
+    }
+    switch (buttonPushCounter) {
+      case 0:
+        waiting();
+        break;
+      case 1:
+        arrow();
+        break;
+      case 2:
+        particles();
+        break;
+      default:
 
-  }
-}//end else from if bConnected
+        buttonPushCounter = buttonPushCounter % 3;
+    }
+  }//end else from if bConnected
+}
 
 
 void waiting() {
@@ -99,6 +122,7 @@ void waiting() {
     }
   }
 }
+
 
 void arrow() {
 
@@ -121,6 +145,8 @@ void arrow() {
     matrix.show();
     delay(0);
   }
+
+
 }
 
 void particles() {
@@ -140,35 +166,6 @@ void particles() {
 }
 
 
-void manual() {
 
-  // read the pushbutton input pin:
-  buttonState = digitalRead(buttonPin);
-
-  if (buttonState != lastButtonState) {
-    if (buttonState == HIGH) {
-      buttonPushCounter++;
-      if (buttonPushCounter > 2) buttonPushCounter = 0;
-      Serial.println("on");
-      Serial.print("number of button pushes:  ");
-      Serial.println(buttonPushCounter);
-    }
-    lastButtonState = buttonState;
-  }
-  switch (buttonPushCounter) {
-    case 0:
-      waiting();
-      break;
-    case 1:
-      arrow();
-      break;
-    case 2:
-      particles();
-      break;
-    default:
-
-      buttonPushCounter = buttonPushCounter % 3;
-  }
-}
 
 
